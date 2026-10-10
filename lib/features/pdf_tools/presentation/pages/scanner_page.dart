@@ -1,6 +1,7 @@
 import 'package:open_filex/open_filex.dart';
 import 'package:flutter/material.dart';
 import 'package:pdf_maker_scanner/core/utils/file_saver_util.dart';
+import 'package:pdf_maker_scanner/core/utils/file_size_util.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:cunning_document_scanner/cunning_document_scanner.dart';
@@ -37,7 +38,9 @@ class _ScannerViewState extends State<ScannerView> {
   
   Future<void> _startScan() async {
     try {
-      List<String> pictures = await CunningDocumentScanner.getPictures() ?? [];
+      List<String> pictures = await CunningDocumentScanner.getPictures(
+        androidScannerMode: AndroidScannerMode.base,
+      ) ?? [];
       if (pictures.isNotEmpty && mounted) {
         context.read<ScannerBloc>().add(ProcessScannerEvent(
           params: {'imagePaths': pictures},
@@ -63,8 +66,19 @@ class _ScannerViewState extends State<ScannerView> {
           if (state is ScannerLoading) {
             return const ToolProcessingView(title: 'Processing Scanned Documents...');
           } else if (state is ScannerSuccess) {
+            final fileSizeStr = state.file.existsSync() ? formatFileSize(state.file.lengthSync()) : '';
             return ToolSuccessView(
               title: 'Documents Scanned and Converted to PDF Successfully',
+              fileInfoCard: Card(
+                elevation: 0,
+                color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                child: ListTile(
+                  leading: const Icon(Icons.document_scanner, color: Colors.green),
+                  title: Text(state.file.path.split('/').last),
+                  subtitle: Text(fileSizeStr),
+                ),
+              ),
               onOpen: () { OpenFilex.open(state.file.path); },
               onShare: () {
                 Share.shareXFiles([XFile(state.file.path)], text: 'Here is the scanned document PDF.');

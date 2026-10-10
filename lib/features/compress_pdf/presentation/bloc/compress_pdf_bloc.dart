@@ -22,6 +22,7 @@ class CompressPdfBloc extends Bloc<CompressPdfEvent, CompressPdfState> {
       final result = await pdfProcessor.compressPdf(
         inputFile: event.inputFile, 
         outputPath: outputPath,
+        level: event.params['level']?.toString(),
       );
       
       result.fold(

@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:open_filex/open_filex.dart';
 
+import 'package:pdf_maker_scanner/core/utils/file_size_util.dart';
 import '../../../../injection_container.dart' as di;
 import '../../../../core/presentation/components/tool_processing_view.dart';
 import '../../../../core/presentation/components/tool_success_view.dart';
@@ -53,21 +54,31 @@ class ImageToPdfView extends StatelessWidget {
           }
           
           if (state is ImageToPdfSuccess) {
+            final fileSizeStr = state.pdfFile.existsSync() ? formatFileSize(state.pdfFile.lengthSync()) : '';
             return ToolSuccessView(
               title: 'PDF Created Successfully',
               subtitle: 'Your images have been converted to a single PDF document.',
+              fileInfoCard: Card(
+                elevation: 0,
+                color: Theme.of(context).colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                child: ListTile(
+                  leading: const Icon(Icons.picture_as_pdf, color: Colors.red),
+                  title: Text(state.pdfFile.path.split('/').last),
+                  subtitle: Text(fileSizeStr),
+                ),
+              ),
               onOpen: () {
                 OpenFilex.open(state.pdfFile.path);
               },
               onShare: () {
-                Share.shareXFiles([XFile(state.pdfFile.path)]);
+                Share.shareXFiles([XFile(state.pdfFile.path)], text: 'Here is your generated PDF.');
               },
               onSave: () {
-                // Save logic
+                FileSaverUtil.saveFile(context, state.pdfFile, state.pdfFile.path.split('/').last);
               },
               onDone: () {
                 context.pop();
-                context.push('/img-to-pdf');
               },
             );
           }

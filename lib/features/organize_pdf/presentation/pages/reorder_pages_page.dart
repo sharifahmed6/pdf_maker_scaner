@@ -2,6 +2,7 @@ import 'package:open_filex/open_filex.dart';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:pdf_maker_scanner/core/utils/file_saver_util.dart';
+import 'package:pdf_maker_scanner/core/utils/file_size_util.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:file_picker/file_picker.dart';
@@ -91,8 +92,19 @@ class _ReorderPagesViewState extends State<ReorderPagesView> {
           if (state is ReorderPdfLoading) {
             return const ToolProcessingView(title: 'Reordering Pages...');
           } else if (state is ReorderPdfSuccess) {
+            final fileSizeStr = state.file.existsSync() ? formatFileSize(state.file.lengthSync()) : '';
             return ToolSuccessView(
               title: 'Pages Reordered Successfully',
+              fileInfoCard: Card(
+                elevation: 0,
+                color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                child: ListTile(
+                  leading: const Icon(Icons.reorder, color: Colors.blue),
+                  title: Text(state.file.path.split('/').last),
+                  subtitle: Text(fileSizeStr),
+                ),
+              ),
               onOpen: () { OpenFilex.open(state.file.path); },
               onShare: () {
                 Share.shareXFiles([XFile(state.file.path)], text: 'Here is the organized PDF.');

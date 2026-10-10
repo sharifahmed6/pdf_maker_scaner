@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:pdf_maker_scanner/core/utils/file_saver_util.dart';
+import 'package:pdf_maker_scanner/core/utils/file_size_util.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:path/path.dart' as p;
@@ -53,17 +54,28 @@ class SplitPdfView extends StatelessWidget {
           }
           
           if (state is SplitPdfSuccess) {
+            final fileSizeStr = state.splitFile.existsSync() ? formatFileSize(state.splitFile.lengthSync()) : '';
             return ToolSuccessView(
               title: 'PDF Split Successfully',
               subtitle: 'Selected pages extracted into a new PDF.',
+              fileInfoCard: Card(
+                elevation: 0,
+                color: Theme.of(context).colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                child: ListTile(
+                  leading: const Icon(Icons.call_split, color: Colors.orange),
+                  title: Text(state.splitFile.path.split('/').last),
+                  subtitle: Text(fileSizeStr),
+                ),
+              ),
               onOpen: () {
                 OpenFilex.open(state.splitFile.path);
               },
               onShare: () {
-                Share.shareXFiles([XFile(state.splitFile.path)]);
+                Share.shareXFiles([XFile(state.splitFile.path)], text: 'Here is your split PDF.');
               },
               onSave: () {
-                // Save logic
+                FileSaverUtil.saveFile(context, state.splitFile, state.splitFile.path.split('/').last);
               },
               onDone: () {
                 context.pop();

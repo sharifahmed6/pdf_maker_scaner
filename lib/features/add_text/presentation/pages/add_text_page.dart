@@ -10,6 +10,8 @@ import 'package:syncfusion_flutter_pdf/pdf.dart' as sf;
 import 'package:syncfusion_flutter_pdfviewer/pdfviewer.dart';
 import 'package:open_filex/open_filex.dart';
 
+import 'package:pdf_maker_scanner/core/utils/file_saver_util.dart';
+import 'package:pdf_maker_scanner/core/utils/file_size_util.dart';
 import '../../../../injection_container.dart';
 import '../../../../core/presentation/components/tool_processing_view.dart';
 import '../../../../core/presentation/components/tool_success_view.dart';
@@ -161,8 +163,19 @@ class _AddTextViewState extends State<AddTextView> {
           if (state is AddTextLoading) {
             return const ToolProcessingView(title: 'Adding Text...');
           } else if (state is AddTextSuccess) {
+            final fileSizeStr = state.file.existsSync() ? formatFileSize(state.file.lengthSync()) : '';
             return ToolSuccessView(
               title: 'Text Added Successfully',
+              fileInfoCard: Card(
+                elevation: 0,
+                color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                child: ListTile(
+                  leading: const Icon(Icons.text_fields, color: Colors.blue),
+                  title: Text(state.file.path.split('/').last),
+                  subtitle: Text(fileSizeStr),
+                ),
+              ),
               onOpen: () { OpenFilex.open(state.file.path); },
               onShare: () {
                 Share.shareXFiles([XFile(state.file.path)], text: 'Here is the PDF.');

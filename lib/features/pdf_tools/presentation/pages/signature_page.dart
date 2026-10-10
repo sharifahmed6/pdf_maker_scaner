@@ -85,17 +85,25 @@ class _SignaturePageState extends State<SignaturePage> {
     'Parisienne',
   ];
   
+  SignatureController _createController({List<Point>? points, Color? color}) {
+    return SignatureController(
+      penStrokeWidth: 3,
+      penColor: color ?? _selectedColor,
+      exportBackgroundColor: Colors.transparent,
+      points: points,
+      onDrawStart: () {
+        if (mounted) setState(() {});
+      },
+      onDrawEnd: () {
+        if (mounted) setState(() {});
+      },
+    );
+  }
+
   @override
   void initState() {
     super.initState();
-    _signatureController = SignatureController(
-      penStrokeWidth: 3,
-      penColor: _selectedColor,
-      exportBackgroundColor: Colors.transparent,
-    );
-    _signatureController.addListener(() {
-      if (mounted) setState(() {});
-    });
+    _signatureController = _createController();
   }
   
   File? _selectedFile;
@@ -114,17 +122,12 @@ class _SignaturePageState extends State<SignaturePage> {
   Offset _signaturePosition = const Offset(50, 50);
   double _scale = 1.0;
   double _rotation = 0.0;
+  bool _isSelected = true;
   
   // Base dimensions of the signature image container
-  final double _baseWidth = 150;
-  final double _baseHeight = 50;
+  double _baseWidth = 120.0;
+  double _baseHeight = 40.0;
 
-  // Variables for tracking gesture updates
-  Offset _startingFocalPoint = Offset.zero;
-  Offset _previousOffset = Offset.zero;
-  double _previousScale = 1.0;
-  double _previousRotation = 0.0;
-  
   BoxConstraints? _pdfConstraints;
 
   Future<void> _pickFile() async {
@@ -189,18 +192,39 @@ class _SignaturePageState extends State<SignaturePage> {
 
       if (imgBytes == null) return;
 
+      final imgSize = await _getImageSize(imgBytes);
+      double aspect = (imgSize.height > 0) ? imgSize.width / imgSize.height : 3.0;
+      double targetW = (_pdfConstraints != null) ? _pdfConstraints!.maxWidth * 0.28 : 120.0;
+      double targetH = targetW / aspect;
+
       setState(() {
+        _baseWidth = targetW;
+        _baseHeight = targetH;
         _signatureImageBytes = imgBytes;
         if (!kIsWeb && picked.path != null) {
           _signatureImageFile = File(picked.path!);
         }
         _phase = SignaturePhase.placing;
-        
-        // Reset placement state
         _scale = 1.0;
         _rotation = 0.0;
-        _signaturePosition = const Offset(50, 50);
+        _isSelected = true;
+        double initX = ((_pdfConstraints?.maxWidth ?? 300) - targetW) / 2;
+        double initY = ((_pdfConstraints?.maxHeight ?? 400) - targetH) * 0.7;
+        _signaturePosition = Offset(initX.clamp(0.0, double.infinity), initY.clamp(0.0, double.infinity));
       });
+    }
+  }
+
+
+  Future<ui.Size> _getImageSize(Uint8List bytes) async {
+    try {
+      final codec = await ui.instantiateImageCodec(bytes);
+      final frame = await codec.getNextFrame();
+      final size = ui.Size(frame.image.width.toDouble(), frame.image.height.toDouble());
+      frame.image.dispose();
+      return size;
+    } catch (e) {
+      return const ui.Size(120, 40);
     }
   }
 
@@ -267,14 +291,22 @@ class _SignaturePageState extends State<SignaturePage> {
         _signatureImageFile = sigFile;
       }
 
+      final imgSize = await _getImageSize(imageBytes);
+      double aspect = (imgSize.height > 0) ? imgSize.width / imgSize.height : 3.0;
+      double targetW = (_pdfConstraints != null) ? _pdfConstraints!.maxWidth * 0.28 : 120.0;
+      double targetH = targetW / aspect;
+
       setState(() {
+        _baseWidth = targetW;
+        _baseHeight = targetH;
         _signatureImageBytes = imageBytes;
         _phase = SignaturePhase.placing;
-
-        // Reset placement state
         _scale = 1.0;
         _rotation = 0.0;
-        _signaturePosition = const Offset(50, 50);
+        _isSelected = true;
+        double initX = ((_pdfConstraints?.maxWidth ?? 300) - targetW) / 2;
+        double initY = ((_pdfConstraints?.maxHeight ?? 400) - targetH) * 0.7;
+        _signaturePosition = Offset(initX.clamp(0.0, double.infinity), initY.clamp(0.0, double.infinity));
       });
     }
   }
@@ -524,150 +556,229 @@ class _SignaturePageState extends State<SignaturePage> {
                 Expanded(
                   child: Container(
                     margin: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      border: Border.all(color: Colors.grey.withValues(alpha: 0.5), width: 2),
-                      color: Colors.grey.withValues(alpha: 0.1),
-                    ),
                     child: LayoutBuilder(
                       builder: (context, constraints) {
-                        _pdfConstraints = constraints;
-                        return Stack(
-                          children: [
-                            // PDF Viewer - fills the entire container
-                            SizedBox.expand(
-                              child: _selectedFileBytes != null
-                                ? SfPdfViewer.memory(
-                                    _selectedFileBytes!,
-                                    key: ValueKey('pdf_${_selectedFileBytes.hashCode}'),
-                                    controller: _pdfViewerController,
-                                    pageLayoutMode: PdfPageLayoutMode.single,
-                                    canShowScrollHead: false,
-                                    canShowScrollStatus: false,
-                                    enableDoubleTapZooming: false,
-                                    enableTextSelection: false,
-                                    onPageChanged: (PdfPageChangedDetails details) {
-                                      setState(() {
-                                        _currentPageIndex = details.newPageNumber - 1;
-                                      });
-                                    },
-                                  )
-                                : (_selectedFile != null
-                                  ? SfPdfViewer.file(
-                                      _selectedFile!,
-                                      key: ValueKey('pdf_file_${_selectedFile!.path}'),
-                                      controller: _pdfViewerController,
-                                      pageLayoutMode: PdfPageLayoutMode.single,
-                                      canShowScrollHead: false,
-                                      canShowScrollStatus: false,
-                                      enableDoubleTapZooming: false,
-                                      enableTextSelection: false,
-                                      onPageChanged: (PdfPageChangedDetails details) {
-                                        setState(() {
-                                          _currentPageIndex = details.newPageNumber - 1;
-                                        });
-                                      },
-                                    )
-                                  : const SizedBox()),
+                        double pdfWidth = _pdfPageSize.width > 0 ? _pdfPageSize.width : 595.0;
+                        double pdfHeight = _pdfPageSize.height > 0 ? _pdfPageSize.height : 842.0;
+                        double pdfAspect = pdfWidth / pdfHeight;
+                        double containerAspect = constraints.maxWidth / constraints.maxHeight;
+
+                        double renderedWidth;
+                        double renderedHeight;
+
+                        if (containerAspect > pdfAspect) {
+                          renderedHeight = constraints.maxHeight;
+                          renderedWidth = renderedHeight * pdfAspect;
+                        } else {
+                          renderedWidth = constraints.maxWidth;
+                          renderedHeight = renderedWidth / pdfAspect;
+                        }
+
+                        _pdfConstraints = BoxConstraints.tight(Size(renderedWidth, renderedHeight));
+
+                        return Center(
+                          child: Container(
+                            width: renderedWidth,
+                            height: renderedHeight,
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              border: Border.all(color: Colors.grey.withValues(alpha: 0.4), width: 1),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withValues(alpha: 0.15),
+                                  blurRadius: 8,
+                                  spreadRadius: 2,
+                                )
+                              ]
                             ),
-                            // Signature overlay
-                            Positioned(
-                              left: _signaturePosition.dx,
-                              top: _signaturePosition.dy,
-                              child: Transform.rotate(
-                                angle: _rotation,
-                                child: SizedBox(
-                                  width: _baseWidth * _scale + 32,
-                                  height: _baseHeight * _scale + 32,
-                                  child: Stack(
-                                    children: [
-                                      // Center Container (The Signature)
-                                      Center(
-                                        child: GestureDetector(
-                                          onPanUpdate: (details) {
-                                            setState(() {
-                                              double newX = _signaturePosition.dx + details.delta.dx;
-                                              double newY = _signaturePosition.dy + details.delta.dy;
-                                              if (_pdfConstraints != null) {
-                                                double sigWidth = _baseWidth * _scale + 32;
-                                                double sigHeight = _baseHeight * _scale + 32;
-                                                double maxX = (_pdfConstraints!.maxWidth - sigWidth).clamp(0.0, double.infinity);
-                                                double maxY = (_pdfConstraints!.maxHeight - sigHeight).clamp(0.0, double.infinity);
-                                                newX = newX.clamp(0.0, maxX);
-                                                newY = newY.clamp(0.0, maxY);
-                                              }
-                                              _signaturePosition = Offset(newX, newY);
-                                            });
-                                          },
-                                          child: Container(
-                                            width: _baseWidth * _scale,
-                                            height: _baseHeight * _scale,
-                                            decoration: BoxDecoration(
-                                              border: Border.all(color: theme.colorScheme.primary, width: 2, style: BorderStyle.solid),
-                                              color: Colors.white.withValues(alpha: 0.2),
-                                            ),
-                                            child: _signatureImageBytes != null
-                                              ? Image.memory(
-                                                  _signatureImageBytes!,
-                                                  fit: BoxFit.contain,
+                            child: Stack(
+                              clipBehavior: Clip.none,
+                              children: [
+                                // PDF Viewer Layer (Bottom)
+                                Positioned.fill(
+                                  child: _selectedFileBytes != null
+                                              ? SfPdfViewer.memory(
+                                                  _selectedFileBytes!,
+                                                  key: ValueKey('pdf_${_selectedFileBytes.hashCode}'),
+                                                  controller: _pdfViewerController,
+                                                  pageLayoutMode: PdfPageLayoutMode.single,
+                                                  canShowScrollHead: false,
+                                                  canShowScrollStatus: false,
+                                                  enableDoubleTapZooming: false,
+                                                  enableTextSelection: false,
+                                                  onPageChanged: (PdfPageChangedDetails details) {
+                                                    setState(() {
+                                                      _currentPageIndex = details.newPageNumber - 1;
+                                                    });
+                                                  },
                                                 )
-                                              : Image.file(
-                                                  _signatureImageFile!,
-                                                  fit: BoxFit.contain,
-                                                ),
-                                          ),
-                                        ),
-                                      ),
-                                      // Bottom Right: Scale Handle
-                                      Positioned(
-                                        right: 0,
-                                        bottom: 0,
-                                        child: GestureDetector(
-                                          onPanUpdate: (details) {
-                                            setState(() {
-                                              double delta = details.delta.dx + details.delta.dy;
-                                              _scale = (_scale + delta * 0.01).clamp(0.2, 5.0);
-                                              if (_pdfConstraints != null) {
-                                                double sigWidth = _baseWidth * _scale + 32;
-                                                double sigHeight = _baseHeight * _scale + 32;
-                                                double maxX = (_pdfConstraints!.maxWidth - sigWidth).clamp(0.0, double.infinity);
-                                                double maxY = (_pdfConstraints!.maxHeight - sigHeight).clamp(0.0, double.infinity);
-                                                _signaturePosition = Offset(
-                                                  _signaturePosition.dx.clamp(0.0, maxX),
-                                                  _signaturePosition.dy.clamp(0.0, maxY),
-                                                );
-                                              }
-                                            });
-                                          },
-                                          child: Container(
-                                            padding: const EdgeInsets.all(6),
-                                            decoration: BoxDecoration(color: theme.colorScheme.primary, shape: BoxShape.circle),
-                                            child: const Icon(Icons.zoom_out_map, color: Colors.white, size: 18),
-                                          ),
-                                        ),
-                                      ),
-                                      // Top Left: Rotate Handle
-                                      Positioned(
-                                        left: 0,
-                                        top: 0,
-                                        child: GestureDetector(
-                                          onPanUpdate: (details) {
-                                            setState(() {
-                                              _rotation += (details.delta.dx + details.delta.dy) * 0.015;
-                                            });
-                                          },
-                                          child: Container(
-                                            padding: const EdgeInsets.all(6),
-                                            decoration: const BoxDecoration(color: Colors.orange, shape: BoxShape.circle),
-                                            child: const Icon(Icons.rotate_right, color: Colors.white, size: 18),
-                                          ),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
+                                              : (_selectedFile != null
+                                                ? SfPdfViewer.file(
+                                                    _selectedFile!,
+                                                    key: ValueKey('pdf_file_${_selectedFile!.path}'),
+                                                    controller: _pdfViewerController,
+                                                    pageLayoutMode: PdfPageLayoutMode.single,
+                                                    canShowScrollHead: false,
+                                                    canShowScrollStatus: false,
+                                                    enableDoubleTapZooming: false,
+                                                    enableTextSelection: false,
+                                                    onPageChanged: (PdfPageChangedDetails details) {
+                                                      setState(() {
+                                                        _currentPageIndex = details.newPageNumber - 1;
+                                                      });
+                                                    },
+                                                  )
+                                                : const SizedBox()),
                                 ),
-                              ),
+                                // Overlay Layer with Selection Control
+                                StatefulBuilder(
+                                  builder: (context, setOverlayState) {
+                                    double sigWidth = _baseWidth * _scale;
+                                    double sigHeight = _baseHeight * _scale;
+                                    return Stack(
+                                      clipBehavior: Clip.none,
+                                      children: [
+                                        // Transparent Deselect Layer (Middle)
+                                        Positioned.fill(
+                                          child: GestureDetector(
+                                            behavior: HitTestBehavior.translucent,
+                                            onTap: () {
+                                              setOverlayState(() {
+                                                _isSelected = false;
+                                              });
+                                            },
+                                            child: const SizedBox.expand(),
+                                          ),
+                                        ),
+                                        // Signature Item
+                                        Positioned(
+                                          left: _signaturePosition.dx - 16.0,
+                                          top: _signaturePosition.dy - 16.0,
+                                          child: Transform.rotate(
+                                            angle: _rotation,
+                                            child: SizedBox(
+                                              width: sigWidth + 32.0,
+                                              height: sigHeight + 32.0,
+                                              child: Stack(
+                                                clipBehavior: Clip.none,
+                                                children: [
+                                                  // Main Container (The Signature Box)
+                                                  Positioned(
+                                                    left: 16.0,
+                                                    top: 16.0,
+                                                    width: sigWidth,
+                                                    height: sigHeight,
+                                                    child: GestureDetector(
+                                                      onTap: () {
+                                                        setOverlayState(() {
+                                                          _isSelected = true;
+                                                        });
+                                                      },
+                                                      onPanStart: (_) {
+                                                        setOverlayState(() {
+                                                          _isSelected = true;
+                                                        });
+                                                      },
+                                                      onPanUpdate: (details) {
+                                                        setOverlayState(() {
+                                                          _isSelected = true;
+                                                          double newX = _signaturePosition.dx + details.delta.dx;
+                                                          double newY = _signaturePosition.dy + details.delta.dy;
+                                                          if (_pdfConstraints != null) {
+                                                            double minX = -sigWidth + 30.0;
+                                                            double maxX = _pdfConstraints!.maxWidth - 30.0;
+                                                            double minY = -sigHeight + 30.0;
+                                                            double maxY = _pdfConstraints!.maxHeight - 30.0;
+                                                            newX = newX.clamp(minX, maxX);
+                                                            newY = newY.clamp(minY, maxY);
+                                                          }
+                                                          _signaturePosition = Offset(newX, newY);
+                                                        });
+                                                      },
+                                                      child: Container(
+                                                        width: sigWidth,
+                                                        height: sigHeight,
+                                                        decoration: BoxDecoration(
+                                                          border: _isSelected
+                                                            ? Border.all(color: theme.colorScheme.primary, width: 2, style: BorderStyle.solid)
+                                                            : null,
+                                                          color: _isSelected
+                                                            ? Colors.white.withValues(alpha: 0.2)
+                                                            : Colors.transparent,
+                                                        ),
+                                                        child: _signatureImageBytes != null
+                                                          ? Image.memory(
+                                                              _signatureImageBytes!,
+                                                              fit: BoxFit.contain,
+                                                            )
+                                                          : Image.file(
+                                                              _signatureImageFile!,
+                                                              fit: BoxFit.contain,
+                                                            ),
+                                                      ),
+                                                    ),
+                                                  ),
+                                                  // Bottom Right: Scale Handle
+                                                  if (_isSelected)
+                                                    Positioned(
+                                                      right: 1,
+                                                      bottom: 1,
+                                                      child: GestureDetector(
+                                                        onPanUpdate: (details) {
+                                                          setOverlayState(() {
+                                                            double delta = details.delta.dx + details.delta.dy;
+                                                            _scale = (_scale + delta * 0.01).clamp(0.2, 5.0);
+                                                            sigWidth = _baseWidth * _scale;
+                                                            sigHeight = _baseHeight * _scale;
+                                                            if (_pdfConstraints != null) {
+                                                              double minX = -sigWidth + 30.0;
+                                                              double maxX = _pdfConstraints!.maxWidth - 30.0;
+                                                              double minY = -sigHeight + 30.0;
+                                                              double maxY = _pdfConstraints!.maxHeight - 30.0;
+                                                              _signaturePosition = Offset(
+                                                                _signaturePosition.dx.clamp(minX, maxX),
+                                                                _signaturePosition.dy.clamp(minY, maxY),
+                                                              );
+                                                            }
+                                                          });
+                                                        },
+                                                        child: Container(
+                                                          padding: const EdgeInsets.all(6),
+                                                          decoration: BoxDecoration(color: theme.colorScheme.primary, shape: BoxShape.circle),
+                                                          child: const Icon(Icons.zoom_out_map, color: Colors.white, size: 18),
+                                                        ),
+                                                      ),
+                                                    ),
+                                                  // Top Left: Rotate Handle
+                                                  if (_isSelected)
+                                                    Positioned(
+                                                      left: 1,
+                                                      top: 1,
+                                                      child: GestureDetector(
+                                                        onPanUpdate: (details) {
+                                                          setOverlayState(() {
+                                                            _rotation += (details.delta.dx + details.delta.dy) * 0.015;
+                                                          });
+                                                        },
+                                                        child: Container(
+                                                          padding: const EdgeInsets.all(6),
+                                                          decoration: const BoxDecoration(color: Colors.orange, shape: BoxShape.circle),
+                                                          child: const Icon(Icons.rotate_right, color: Colors.white, size: 18),
+                                                        ),
+                                                      ),
+                                                    ),
+                                                ],
+                                              ),
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    );
+                                  },
+                                ),
+                              ],
                             ),
-                          ],
+                          ),
                         );
                       },
                     ),
@@ -871,17 +982,9 @@ class _SignaturePageState extends State<SignaturePage> {
               onPressed: () {
                 setState(() {
                   _selectedColor = tempColor;
-                  // Re-create controller to update color but keep points
                   final currentPoints = _signatureController.points;
                   _signatureController.dispose();
-                  _signatureController = SignatureController(
-                    penStrokeWidth: 3,
-                    penColor: _selectedColor,
-                    exportBackgroundColor: Colors.transparent,
-                    points: currentPoints,
-                  )..addListener(() {
-                      if (mounted) setState(() {});
-                    });
+                  _signatureController = _createController(points: currentPoints, color: _selectedColor);
                 });
                 Navigator.of(context).pop();
               },
@@ -898,17 +1001,9 @@ class _SignaturePageState extends State<SignaturePage> {
       onTap: () {
         setState(() {
           _selectedColor = color;
-          // Re-create controller to update color but keep points
           final currentPoints = _signatureController.points;
           _signatureController.dispose();
-          _signatureController = SignatureController(
-            penStrokeWidth: 3,
-            penColor: _selectedColor,
-            exportBackgroundColor: Colors.transparent,
-            points: currentPoints,
-          )..addListener(() {
-              if (mounted) setState(() {});
-            });
+          _signatureController = _createController(points: currentPoints, color: _selectedColor);
         });
       },
       child: Container(

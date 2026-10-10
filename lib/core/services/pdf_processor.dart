@@ -8,6 +8,7 @@ abstract class PdfProcessor {
     required File inputFile,
     required String outputPath,
     bool highQuality = true,
+    String? level,
   });
 
   /// Merges multiple PDF files into one.

@@ -2,6 +2,7 @@ import 'package:open_filex/open_filex.dart';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:pdf_maker_scanner/core/utils/file_saver_util.dart';
+import 'package:pdf_maker_scanner/core/utils/file_size_util.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:file_picker/file_picker.dart';
@@ -37,6 +38,7 @@ class CompressPdfView extends StatefulWidget {
 enum CompressLevel { highQuality, recommended, maxCompression }
 
 class _CompressPdfViewState extends State<CompressPdfView> {
+
   CompressLevel _selectedLevel = CompressLevel.recommended;
   File? _selectedFile;
 
@@ -78,30 +80,38 @@ class _CompressPdfViewState extends State<CompressPdfView> {
               subtitle: 'Please wait while we reduce the file size.',
             );
           } else if (state is CompressPdfSuccess) {
+            final int origBytes = _selectedFile != null && _selectedFile!.existsSync() ? _selectedFile!.lengthSync() : 0;
+            final int compBytes = state.file.existsSync() ? state.file.lengthSync() : 0;
+            final String origStr = formatFileSize(origBytes);
+            final String compStr = formatFileSize(compBytes);
+
             return ToolSuccessView(
               title: 'PDF Compressed Successfully',
               fileInfoCard: Card(
+                elevation: 0,
+                color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                 child: Padding(
                   padding: const EdgeInsets.all(16.0),
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceAround,
                     children: [
-                      _buildStatItem('Original', '... MB', theme),
+                      _buildStatItem('Original', origStr, theme),
                       const Icon(Icons.arrow_forward, color: Colors.grey),
-                      _buildStatItem('Compressed', '... MB', theme),
+                      _buildStatItem('Compressed', compStr, theme, isHighlight: true),
                       const Icon(Icons.check_circle, color: Colors.green),
                     ],
                   ),
                 ),
               ),
               onOpen: () {
-                // Open file logic
+                OpenFilex.open(state.file.path);
               },
               onShare: () {
                 Share.shareXFiles([XFile(state.file.path)], text: 'Here is the compressed PDF.');
               },
               onSave: () {
-                // Save logic
+                FileSaverUtil.saveFile(context, state.file, state.file.path.split('/').last);
               },
               onDone: () => context.pop(),
             );

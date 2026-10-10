@@ -1,6 +1,6 @@
-import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:pdf_maker_scanner/core/utils/file_saver_util.dart';
+import 'package:pdf_maker_scanner/core/utils/file_size_util.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:path/path.dart' as p;
@@ -10,7 +10,6 @@ import 'package:open_filex/open_filex.dart';
 import '../../../../injection_container.dart' as di;
 import '../../../../core/presentation/components/tool_processing_view.dart';
 import '../../../../core/presentation/components/tool_success_view.dart';
-import '../../../../core/presentation/components/tool_error_view.dart';
 import '../bloc/merge_pdf_bloc.dart';
 import '../bloc/merge_pdf_event.dart';
 import '../bloc/merge_pdf_state.dart';
@@ -55,21 +54,31 @@ class MergePdfView extends StatelessWidget {
           }
           
           if (state is MergePdfSuccess) {
+            final fileSizeStr = state.mergedFile.existsSync() ? formatFileSize(state.mergedFile.lengthSync()) : '';
             return ToolSuccessView(
               title: 'PDFs Merged Successfully',
               subtitle: 'Your files have been combined into a single PDF.',
+              fileInfoCard: Card(
+                elevation: 0,
+                color: Theme.of(context).colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                child: ListTile(
+                  leading: const Icon(Icons.picture_as_pdf, color: Colors.blue),
+                  title: Text(state.mergedFile.path.split('/').last),
+                  subtitle: Text(fileSizeStr),
+                ),
+              ),
               onOpen: () {
                 OpenFilex.open(state.mergedFile.path);
               },
               onShare: () {
-                Share.shareXFiles([XFile(state.mergedFile.path)]);
+                Share.shareXFiles([XFile(state.mergedFile.path)], text: 'Here is your merged PDF.');
               },
               onSave: () {
-                // Should show save dialog or save to device
+                FileSaverUtil.saveFile(context, state.mergedFile, state.mergedFile.path.split('/').last);
               },
               onDone: () {
                 context.pop();
-                context.push('/merge-pdf');
               },
             );
           }

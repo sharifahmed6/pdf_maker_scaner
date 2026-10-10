@@ -2,6 +2,7 @@ import 'package:open_filex/open_filex.dart';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:pdf_maker_scanner/core/utils/file_saver_util.dart';
+import 'package:pdf_maker_scanner/core/utils/file_size_util.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:file_picker/file_picker.dart';
@@ -85,13 +86,17 @@ class _ProtectPdfViewState extends State<ProtectPdfView> {
               subtitle: 'Securing your document with a password.',
             );
           } else if (state is ProtectPdfSuccess) {
+            final fileSizeStr = state.file.existsSync() ? formatFileSize(state.file.lengthSync()) : '';
             return ToolSuccessView(
               title: 'PDF Protected Successfully',
               fileInfoCard: Card(
+                elevation: 0,
+                color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                 child: ListTile(
                   leading: const Icon(Icons.lock, color: Colors.green),
-                  title: const Text('Secured Document'),
-                  subtitle: const Text('Requires password to open'),
+                  title: Text(state.file.path.split('/').last),
+                  subtitle: Text('$fileSizeStr • Requires password to open'),
                 ),
               ),
               onOpen: () { OpenFilex.open(state.file.path); },

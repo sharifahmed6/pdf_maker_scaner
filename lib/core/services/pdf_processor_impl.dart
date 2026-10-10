@@ -16,12 +16,20 @@ class PdfProcessorImpl implements PdfProcessor {
     required File inputFile,
     required String outputPath,
     bool highQuality = true,
+    String? level,
   }) async {
     try {
-      // Syncfusion PDF optimization
       final sf.PdfDocument document = sf.PdfDocument(inputBytes: await inputFile.readAsBytes());
-      // Note: Full compression usually requires more advanced native libraries,
-      // but Syncfusion stream saving provides some basic structure optimization.
+      
+      sf.PdfCompressionLevel compressionLevel = sf.PdfCompressionLevel.best;
+      if (level != null) {
+        if (level.contains('highQuality')) {
+          compressionLevel = sf.PdfCompressionLevel.normal;
+        } else if (level.contains('maxCompression')) {
+          compressionLevel = sf.PdfCompressionLevel.best;
+        }
+      }
+      document.compressionLevel = compressionLevel;
       
       final List<int> bytes = document.saveSync();
       document.dispose();
