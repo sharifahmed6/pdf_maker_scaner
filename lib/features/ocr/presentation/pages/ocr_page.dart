@@ -37,7 +37,7 @@ class _OcrPageState extends State<OcrPage> {
 
   Future<void> _pickFile() async {
     final result = await FilePicker.pickFiles(
-      type: FileType.image, // ML Kit Text Recognition primarily works on images
+      type: FileType.image,
     );
     if (result.isNotEmpty && result.first.path != null) {
       setState(() {
@@ -57,7 +57,7 @@ class _OcrPageState extends State<OcrPage> {
     
     return Scaffold(
       appBar: AppBar(
-        title: const Text('OCR (Text Recognition)'),
+        title: const Text('OCR Text Recognition'),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
           onPressed: () {
@@ -105,7 +105,6 @@ class _OcrPageState extends State<OcrPage> {
                         onPressed: () {
                           setState(() {
                             _selectedFile = null;
-                            context.read<OcrBloc>().add(const ProcessOcrEvent()); // Re-initialize, technically this is not handled properly yet. Need a reset state or pop.
                           });
                           context.pop();
                         },

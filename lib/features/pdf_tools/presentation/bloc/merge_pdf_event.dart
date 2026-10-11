@@ -1,5 +1,4 @@
 import 'package:equatable/equatable.dart';
-import 'package:file_picker/file_picker.dart';
 
 abstract class MergePdfEvent extends Equatable {
   const MergePdfEvent();

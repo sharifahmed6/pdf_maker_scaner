@@ -1,5 +1,4 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'dart:io';
 import '../../../../core/services/pdf_processor.dart';
 import 'package:path_provider/path_provider.dart';
 import 'protect_pdf_event.dart';

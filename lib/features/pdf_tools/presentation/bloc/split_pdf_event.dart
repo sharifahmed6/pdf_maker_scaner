@@ -1,5 +1,4 @@
 import 'package:equatable/equatable.dart';
-import 'dart:io';
 
 abstract class SplitPdfEvent extends Equatable {
   const SplitPdfEvent();
